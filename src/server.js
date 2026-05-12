@@ -1,14 +1,15 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+require('dotenv').config();
+
 const pool = require('./db');
 const authenticateToken = require('./middlewares/auth');
+const { addToken, hasToken } = require('./tokenStore');
 
 const app = express();
-
 app.use(express.json());
-
-
+//register api
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -50,7 +51,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-
+//login api
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -88,6 +89,9 @@ app.post('/api/auth/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    // store refresh token
+    addToken(refreshToken);
+
     res.json({
       message: 'Login successful',
       accessToken,
@@ -98,6 +102,34 @@ app.post('/api/auth/login', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+app.post('/api/auth/refresh', (req, res) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return res.status(401).json({ error: 'No refresh token provided' });
+  }
+
+  if (!hasToken(token)) {
+    return res.status(403).json({ error: 'Invalid refresh token' });
+  }
+
+  jwt.verify(token, process.env.REFRESH_TOKEN_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Expired or invalid refresh token' });
+    }
+
+    const newAccessToken = jwt.sign(
+      { userId: user.userId },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    res.json({
+      accessToken: newAccessToken
+    });
+  });
 });
 
 
@@ -112,7 +144,6 @@ app.get('/api/protected', authenticateToken, (req, res) => {
   });
 });
 
-
-app.listen(5000, () => {
-  console.log('Server running on port 5000');
+app.listen(process.env.PORT, () => {
+  console.log(`Server running on port ${process.env.PORT}`);
 });
