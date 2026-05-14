@@ -1,26 +1,47 @@
 import { useState } from "react";
-import { login } from "../services/api";
+
+const API_URL = "http://localhost:5000/api";
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
+  const handleLogin = async (e) => {
+    e.preventDefault();
 
-  try {
-    const data = await login(email, password);
-    console.log("✅ SUCCESS 👉", data);
-  } catch (err) {
-    console.log("❌ ERROR 👉", err);
-  }
-};
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage(data.error || "Login failed");
+        return;
+      }
+
+      // save tokens
+      localStorage.setItem("accessToken", data.accessToken);
+      localStorage.setItem("refreshToken", data.refreshToken);
+
+      setMessage("Login successful ✅");
+
+      // go to dashboard
+      window.location.href = "/";
+    } catch (err) {
+      setMessage("Something went wrong while trying to login");
+    }
+  };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1 style={{ color: "red" }}>LOGIN PAGE WORKING</h1>
-      <h2>Login</h2>
+    <div style={{ padding: "40px" }}>
+      <h1>Login</h1>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleLogin}>
         <input
           type="email"
           placeholder="Email"
@@ -39,6 +60,8 @@ export default function Login() {
 
         <button type="submit">Login</button>
       </form>
+
+      <p>{message}</p>
     </div>
   );
 }
