@@ -1,9 +1,9 @@
+require('dotenv').config();
 const express = require('express');
+const teamRoutes = require('./routes/teams');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-require('dotenv').config({ path: __dirname + '/../.env' });
-
 const pool = require('./db');
 const authenticateToken = require('./middlewares/auth');
 const { addToken, hasToken } = require('./tokenStore');
@@ -13,6 +13,7 @@ const app = express();
 app.use(cors());  
 app.use(express.json());
 app.use(express.json());
+app.use('/api/teams', require('./routes/teams'));
 //register api
 app.post('/api/auth/register', async (req, res) => {
   try {
