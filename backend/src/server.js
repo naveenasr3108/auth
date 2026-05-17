@@ -1,19 +1,29 @@
 require('dotenv').config();
 const express = require('express');
-const teamRoutes = require('./routes/teams');
 const cors = require('cors');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const pool = require('./db');
-const authenticateToken = require('./middlewares/auth');
-const { addToken, hasToken } = require('./tokenStore');
+
 const app = express();
 
-app.use(cors());  
-app.use(express.json());
-app.use('/api/teams', require('./routes/teams'));
+// DB + Auth utils
+const pool = require('./db');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const authenticateToken = require('./middlewares/auth');
+const { addToken, hasToken } = require('./tokenStore');
 
-//register api
+// ROUTES
+const teamRoutes = require('./routes/teams');
+const taskRoutes = require('./routes/taskRoutes'); // ✅ ADD THIS
+
+// MIDDLEWARE
+app.use(cors());
+app.use(express.json());
+
+// ROUTE WIRING
+app.use('/api/teams', teamRoutes);
+app.use('/api', taskRoutes); // ✅ VERY IMPORTANT
+
+// REGISTER
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -24,11 +34,6 @@ app.post('/api/auth/register', async (req, res) => {
 
     if (password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: 'Invalid email format' });
     }
 
     const userCheck = await pool.query(
@@ -55,14 +60,10 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-//login api
+// LOGIN
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' });
-    }
 
     const result = await pool.query(
       'SELECT * FROM users WHERE email = $1',
@@ -93,7 +94,6 @@ app.post('/api/auth/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // store refresh token
     addToken(refreshToken);
 
     res.json({
@@ -103,11 +103,12 @@ app.post('/api/auth/login', async (req, res) => {
     });
 
   } catch (err) {
-  console.log("ERROR DETAILS 👉", err);
-  res.status(500).json({ error: err.message });
-}
+    console.log(err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
+// REFRESH TOKEN
 app.post('/api/auth/refresh', (req, res) => {
   const { token } = req.body;
 
@@ -121,7 +122,7 @@ app.post('/api/auth/refresh', (req, res) => {
 
   jwt.verify(token, process.env.REFRESH_TOKEN_SECRET, (err, user) => {
     if (err) {
-      return res.status(403).json({ error: 'Expired or invalid refresh token' });
+      return res.status(403).json({ error: 'Expired token' });
     }
 
     const newAccessToken = jwt.sign(
@@ -130,13 +131,11 @@ app.post('/api/auth/refresh', (req, res) => {
       { expiresIn: '15m' }
     );
 
-    res.json({
-      accessToken: newAccessToken
-    });
+    res.json({ accessToken: newAccessToken });
   });
 });
 
-
+// TEST ROUTES
 app.get('/', (req, res) => {
   res.send('Server is working');
 });
@@ -148,6 +147,7 @@ app.get('/api/protected', authenticateToken, (req, res) => {
   });
 });
 
+// START SERVER
 app.listen(process.env.PORT, () => {
   console.log(`Server running on port ${process.env.PORT}`);
 });

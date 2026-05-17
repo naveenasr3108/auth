@@ -3,7 +3,7 @@ const router = express.Router();
 
 const {
   createTeam,
-  getTeam,
+  getTeams,
   deleteTeam,
   inviteMember,
   acceptInvitation,
@@ -12,43 +12,30 @@ const {
   removeMember
 } = require('../controllers/teamController');
 
-const authenticateToken = require('../middlewares/auth');
-const requireRole = require('../middlewares/requireRole');
+const auth = require('../middlewares/auth');
 
-// Create team (any logged-in user)
-router.post('/', authenticateToken, createTeam);
+// Create team
+router.post('/', auth, createTeam);
 
-// Get team (only members)
-router.get('/:teamId', authenticateToken, requireRole(['admin','member']), getTeam);
+// Get all teams of logged-in user
+router.get('/', auth, getTeams);
 
-// Delete team (admin only)
-router.delete('/:teamId', authenticateToken, requireRole(['admin']), deleteTeam);
+// Delete team (admin)
+router.delete('/:teamId', auth, deleteTeam);
 
-// Invite member (admin only)
-router.post('/:teamId/invite', authenticateToken, requireRole(['admin']), inviteMember);
+// Invite member
+router.post('/:teamId/invite', auth, inviteMember);
 
 // Accept invitation
-router.post('/invitations/:token/accept', authenticateToken, acceptInvitation);
+router.post('/invitations/:inviteId/accept', auth, acceptInvitation);
 
-// Get team members
-router.get('/:teamId/members',
-  authenticateToken,
-  requireRole(['admin','member']),
-  getTeamMembers
-);
+// Get members
+router.get('/:teamId/members', auth, getTeamMembers);
 
-// Update member role (admin only)
-router.put('/:teamId/members/:userId',
-  authenticateToken,
-  requireRole(['admin']),
-  updateMemberRole
-);
+// Update role
+router.put('/:teamId/members/:userId', auth, updateMemberRole);
 
-// Remove member (admin only)
-router.delete('/:teamId/members/:userId',
-  authenticateToken,
-  requireRole(['admin']),
-  removeMember
-);
+// Remove member
+router.delete('/:teamId/members/:userId', auth, removeMember);
 
 module.exports = router;
