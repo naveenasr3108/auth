@@ -5,7 +5,6 @@ const API_URL = "http://localhost:5000/api";
 export const fetchProtected = async (endpoint, options = {}) => {
   let accessToken = getAccessToken();
 
-  // attach access token
   let response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
     headers: {
@@ -15,8 +14,7 @@ export const fetchProtected = async (endpoint, options = {}) => {
     }
   });
 
-  // if token expired → refresh token flow
-  if (response.status === 403 || response.status === 401) {
+  if (response.status === 401 || response.status === 403) {
     const refreshToken = getRefreshToken();
 
     const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
@@ -26,17 +24,14 @@ export const fetchProtected = async (endpoint, options = {}) => {
     });
 
     const data = await refreshRes.json();
-
     if (!data.accessToken) {
       clearTokens();
       window.location.href = "/login";
-      return;
+      throw new Error("Unauthorized");  
     }
 
-    // save new access token
     setTokens(data.accessToken, refreshToken);
 
-    // retry original request
     response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers: {
@@ -45,6 +40,11 @@ export const fetchProtected = async (endpoint, options = {}) => {
         ...(options.headers || {})
       }
     });
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || "API request failed");  // ✅ IMPORTANT
   }
 
   return response.json();

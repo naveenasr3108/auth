@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 const API_URL = "http://localhost:5000/api";
@@ -6,7 +7,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
-
+  const navigate = useNavigate();
   const handleLogin = async (e) => {
     e.preventDefault();
 
@@ -29,9 +30,8 @@ export default function Login() {
       localStorage.setItem("refreshToken", data.refreshToken);
 
       setMessage("Login successful ✅");
-
-      // go to dashboard
-      window.location.href = "/";
+      navigate("/dashboard");
+    
     } catch (err) {
       setMessage("Something went wrong while trying to login");
     }
