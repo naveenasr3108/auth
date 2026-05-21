@@ -8,14 +8,45 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
+
+  const validateInputs = () => {
+    if (!email || !password) {
+      return "Email and password are required";
+    }
+
+    const emailRegex = /\S+@\S+\.\S+/;
+    if (!emailRegex.test(email)) {
+      return "Invalid email format";
+    }
+
+    if (password.length < 8) {
+      return "Password must be at least 8 characters";
+    }
+
+    return null;
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
+
+    // ✅ Frontend validation
+    const error = validateInputs();
+    if (error) {
+      setMessage(error);
+      return;
+    }
 
     try {
       const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+        headers: {
+          "Content-Type": "application/json"
+        },
+        credentials: "include", // ✅ for future CSRF/cookies
+        body: JSON.stringify({
+          email: email.trim(),
+          password: password.trim()
+        })
       });
 
       const data = await res.json();
@@ -25,15 +56,17 @@ export default function Login() {
         return;
       }
 
-      // save tokens
+      // ✅ store tokens safely
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
 
       setMessage("Login successful ✅");
+
+      // ✅ clean navigation
       navigate("/dashboard");
-    
+
     } catch (err) {
-      setMessage("Something went wrong while trying to login");
+      setMessage("Network error. Please try again.");
     }
   };
 
