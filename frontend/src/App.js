@@ -6,39 +6,35 @@ import {
 } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import TaskBoard from "./pages/TaskBoard";
 import CreateTask from "./pages/CreateTask";
 
 import { getAccessToken } from "./utils/auth";
-
 import ErrorBoundary from "./components/ErrorBoundary";
 
-// Protected Route
+// ✅ Protected Route
 function ProtectedRoute({ children }) {
   const token = getAccessToken();
 
-  return token ? (
-    children
-  ) : (
-    <Navigate to="/login" />
-  );
+  return token ? children : <Navigate to="/login" />;
 }
 
 function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        
+        {/* ✅ MUST be outside Routes */}
+        <ToastContainer position="top-right" autoClose={2500} />
+
         <Routes>
-          <Route
-            path="/login"
-            element={<Login />}
-          />
-          <ToastContainer
-  position="top-right"
-  autoClose={2500}
-/>
+          {/* Public Route */}
+          <Route path="/login" element={<Login />} />
+
+          {/* Protected Routes */}
           <Route
             path="/dashboard"
             element={
@@ -47,6 +43,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/tasks"
             element={
@@ -65,13 +62,10 @@ function App() {
             }
           />
 
-          <Route
-            path="*"
-            element={
-              <Navigate to="/login" />
-            }
-          />
+          {/* Default Route */}
+          <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
+
       </BrowserRouter>
     </ErrorBoundary>
   );

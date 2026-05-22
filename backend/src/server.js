@@ -4,6 +4,7 @@ const cors = require('cors');
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const { body, validationResult } = require("express-validator");
+const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
@@ -20,7 +21,10 @@ app.use(express.json());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: "Too many requests, please try again later.",
+  message: {
+    success: false,
+    message: "Too many requests, please try again later."
+  },
 });
 app.use(limiter);
 
@@ -39,6 +43,7 @@ const taskRoutes = require('./routes/taskRoutes');
 app.use('/api/teams', teamRoutes);
 app.use('/api', taskRoutes);
 
+// REGISTER
 app.post(
   '/api/auth/register',
   [
@@ -53,7 +58,10 @@ app.post(
       const errors = validationResult(req);
 
       if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+        return res.status(400).json({
+          success: false,
+          message: errors.array()[0].msg
+        });
       }
 
       const { name, email, password } = req.body;
@@ -64,7 +72,10 @@ app.post(
       );
 
       if (userCheck.rows.length > 0) {
-        return res.status(400).json({ error: 'Email already exists' });
+        return res.status(400).json({
+          success: false,
+          message: 'Email already exists'
+        });
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -74,15 +85,21 @@ app.post(
         [name, email, hashedPassword]
       );
 
-      res.status(201).json({ message: 'User registered successfully' });
+      res.status(201).json({
+        success: true,
+        message: 'User registered successfully'
+      });
 
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Server error' });
+      res.status(500).json({
+        success: false,
+        message: 'Server error'
+      });
     }
   }
 );
 
+// LOGIN
 app.post(
   '/api/auth/login',
   [
@@ -94,7 +111,10 @@ app.post(
       const errors = validationResult(req);
 
       if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+        return res.status(400).json({
+          success: false,
+          message: errors.array()[0].msg
+        });
       }
 
       const { email, password } = req.body;
@@ -107,13 +127,19 @@ app.post(
       const user = result.rows[0];
 
       if (!user) {
-        return res.status(400).json({ error: 'User not found' });
+        return res.status(400).json({
+          success: false,
+          message: 'User not found'
+        });
       }
 
       const isMatch = await bcrypt.compare(password, user.password);
 
       if (!isMatch) {
-        return res.status(400).json({ error: 'Invalid password' });
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid password'
+        });
       }
 
       const accessToken = jwt.sign(
@@ -131,32 +157,47 @@ app.post(
       addToken(refreshToken);
 
       res.json({
+        success: true,
         message: 'Login successful',
-        accessToken,
-        refreshToken
+        data: {
+          accessToken,
+          refreshToken
+        }
       });
 
     } catch (err) {
-      console.log(err);
-      res.status(500).json({ error: 'Server error' });
+      res.status(500).json({
+        success: false,
+        message: 'Server error'
+      });
     }
   }
 );
 
+// REFRESH TOKEN
 app.post('/api/auth/refresh', (req, res) => {
   const { token } = req.body;
 
   if (!token) {
-    return res.status(401).json({ error: 'No refresh token provided' });
+    return res.status(401).json({
+      success: false,
+      message: 'No refresh token provided'
+    });
   }
 
   if (!hasToken(token)) {
-    return res.status(403).json({ error: 'Invalid refresh token' });
+    return res.status(403).json({
+      success: false,
+      message: 'Invalid refresh token'
+    });
   }
 
   jwt.verify(token, process.env.REFRESH_TOKEN_SECRET, (err, user) => {
     if (err) {
-      return res.status(403).json({ error: 'Expired token' });
+      return res.status(403).json({
+        success: false,
+        message: 'Expired token'
+      });
     }
 
     const newAccessToken = jwt.sign(
@@ -165,7 +206,12 @@ app.post('/api/auth/refresh', (req, res) => {
       { expiresIn: '15m' }
     );
 
-    res.json({ accessToken: newAccessToken });
+    res.json({
+      success: true,
+      data: {
+        accessToken: newAccessToken
+      }
+    });
   });
 });
 
@@ -176,10 +222,14 @@ app.get('/', (req, res) => {
 
 app.get('/api/protected', authenticateToken, (req, res) => {
   res.json({
+    success: true,
     message: 'Protected route working',
-    user: req.user
+    data: req.user
   });
 });
+
+// ERROR HANDLER
+app.use(errorHandler);
 
 // START SERVER
 app.listen(process.env.PORT, () => {
