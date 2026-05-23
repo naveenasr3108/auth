@@ -1,17 +1,20 @@
-require('dotenv').config();
+require('dotenv').config({
+  path: process.env.NODE_ENV === "production" ? ".env.production" : ".env"
+});
+
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const { body, validationResult } = require("express-validator");
-const errorHandler = require('./middleware/errorHandler');
+const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
 
 // SECURITY MIDDLEWARE
 app.use(helmet());
 app.use(cors({
-  origin: "http://localhost:3000",
+  origin: process.env.CLIENT_URL,
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true
 }));
@@ -145,13 +148,13 @@ app.post(
       const accessToken = jwt.sign(
         { userId: user.id, email: user.email },
         process.env.JWT_SECRET,
-        { expiresIn: '15m' }
+        { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || '15m' }
       );
 
       const refreshToken = jwt.sign(
         { userId: user.id },
         process.env.REFRESH_TOKEN_SECRET,
-        { expiresIn: '7d' }
+        { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || '7d' }
       );
 
       addToken(refreshToken);
@@ -203,7 +206,7 @@ app.post('/api/auth/refresh', (req, res) => {
     const newAccessToken = jwt.sign(
       { userId: user.userId },
       process.env.JWT_SECRET,
-      { expiresIn: '15m' }
+      { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || '15m' }
     );
 
     res.json({
@@ -230,6 +233,9 @@ app.get('/api/protected', authenticateToken, (req, res) => {
 
 // ERROR HANDLER
 app.use(errorHandler);
+
+// DEBUG (remove later)
+console.log("JWT_SECRET:", process.env.JWT_SECRET);
 
 // START SERVER
 app.listen(process.env.PORT, () => {
