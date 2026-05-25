@@ -11,55 +11,65 @@ const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
 
-// SECURITY MIDDLEWARE
+/* ================= SECURITY ================= */
 app.use(helmet());
+
+// ✅ IMPORTANT FIX: allow BOTH localhost & 127.0.0.1
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000"
+];
+
 app.use(cors({
-  origin: process.env.CLIENT_URL,
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // allow Postman / curl
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true
 }));
+
+// ✅ VERY IMPORTANT (preflight)
+
 app.use(express.json());
 
-// RATE LIMITER
+/* ================= RATE LIMIT ================= */
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: {
-    success: false,
-    message: "Too many requests, please try again later."
-  },
 });
 app.use(limiter);
 
-// DB + Auth utils
+/* ================= DB + AUTH ================= */
 const pool = require('./db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middlewares/auth');
 const { addToken, hasToken } = require('./tokenStore');
 
-// ROUTES
+/* ================= ROUTES ================= */
 const teamRoutes = require('./routes/teams');
 const taskRoutes = require('./routes/taskRoutes');
 
-// ROUTE WIRING
 app.use('/api/teams', teamRoutes);
 app.use('/api', taskRoutes);
 
-// REGISTER
+/* ================= REGISTER ================= */
 app.post(
   '/api/auth/register',
   [
-    body('name').notEmpty().withMessage('Name is required'),
-    body('email').isEmail().withMessage('Valid email required'),
-    body('password')
-      .isLength({ min: 8 })
-      .withMessage('Password must be at least 8 characters')
+    body('name').notEmpty(),
+    body('email').isEmail(),
+    body('password').isLength({ min: 8 })
   ],
   async (req, res) => {
     try {
       const errors = validationResult(req);
-
       if (!errors.isEmpty()) {
         return res.status(400).json({
           success: false,
@@ -94,6 +104,7 @@ app.post(
       });
 
     } catch (err) {
+      console.error(err);
       res.status(500).json({
         success: false,
         message: 'Server error'
@@ -102,17 +113,16 @@ app.post(
   }
 );
 
-// LOGIN
+/* ================= LOGIN ================= */
 app.post(
   '/api/auth/login',
   [
-    body('email').isEmail().withMessage('Valid email required'),
-    body('password').notEmpty().withMessage('Password required')
+    body('email').isEmail(),
+    body('password').notEmpty()
   ],
   async (req, res) => {
     try {
       const errors = validationResult(req);
-
       if (!errors.isEmpty()) {
         return res.status(400).json({
           success: false,
@@ -169,6 +179,7 @@ app.post(
       });
 
     } catch (err) {
+      console.error(err);
       res.status(500).json({
         success: false,
         message: 'Server error'
@@ -177,31 +188,20 @@ app.post(
   }
 );
 
-// REFRESH TOKEN
+/* ================= REFRESH ================= */
 app.post('/api/auth/refresh', (req, res) => {
   const { token } = req.body;
 
   if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'No refresh token provided'
-    });
+    return res.status(401).json({ success: false });
   }
 
   if (!hasToken(token)) {
-    return res.status(403).json({
-      success: false,
-      message: 'Invalid refresh token'
-    });
+    return res.status(403).json({ success: false });
   }
 
   jwt.verify(token, process.env.REFRESH_TOKEN_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({
-        success: false,
-        message: 'Expired token'
-      });
-    }
+    if (err) return res.status(403).json({ success: false });
 
     const newAccessToken = jwt.sign(
       { userId: user.userId },
@@ -211,33 +211,22 @@ app.post('/api/auth/refresh', (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        accessToken: newAccessToken
-      }
+      data: { accessToken: newAccessToken }
     });
   });
 });
 
-// TEST ROUTES
+/* ================= TEST ================= */
 app.get('/', (req, res) => {
   res.send('Server is working');
 });
 
-app.get('/api/protected', authenticateToken, (req, res) => {
-  res.json({
-    success: true,
-    message: 'Protected route working',
-    data: req.user
-  });
-});
-
-// ERROR HANDLER
+/* ================= ERROR ================= */
 app.use(errorHandler);
 
-// DEBUG (remove later)
-console.log("JWT_SECRET:", process.env.JWT_SECRET);
+/* ================= START ================= */
+const PORT = process.env.PORT || 5000;
 
-// START SERVER
-app.listen(process.env.PORT, () => {
-  console.log(`Server running on port ${process.env.PORT}`);
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
